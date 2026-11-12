@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhận dạng chữ tiếng Hàn từ ảnh</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+:root{--blue:#0297DE;--pink:#D83995;--ink:#0b2540;--muted:#5a6b80;--line:#e3edf6;--soft:#f4f9fe}
+*{box-sizing:border-box}
+body{margin:0;background:var(--soft);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,sans-serif;line-height:1.55}
+header{background:linear-gradient(120deg,var(--blue),var(--pink));color:#fff;padding:34px 20px}
+header h1{margin:0;font-size:clamp(24px,4vw,36px);font-weight:600}
+header p{margin:6px 0 0;opacity:.92}
+.wrap{max-width:1000px;margin:0 auto}
+main{max-width:1000px;margin:0 auto;padding:22px 20px 60px;display:grid;gap:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px}
+h2{margin:0 0 12px;font-size:17px}
+#drop{border:2px dashed var(--blue);border-radius:10px;padding:38px 16px;text-align:center;cursor:pointer;background:#0297de0d;transition:.2s}
+#drop.over{background:#0297de2a;border-color:var(--pink);transform:scale(1.01)}
+#drop b{display:block;font-size:18px;margin-bottom:4px}
+#drop span{color:var(--muted);font-size:14px}
+.ctl{display:grid;gap:12px 24px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600}
+label.ck{flex-direction:row;align-items:center;gap:8px;font-weight:500}
+input[type=range]{width:100%;accent-color:var(--blue)}
+select{padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit}
+.pair{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.pair figure{margin:0}
+.pair figcaption{font-size:13px;color:var(--muted);margin-bottom:6px}
+.pair img,.pair canvas{width:100%;max-height:340px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:repeating-conic-gradient(#f0f4f8 0 25%,#fff 0 50%) 0 0/16px 16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,.dl{background:linear-gradient(120deg,var(--blue),var(--pink));color:#fff;border:0;border-radius:8px;padding:11px 20px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
+button.sec,.dl{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+#prog{height:8px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:12px}
+#prog div{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--pink));transition:width .2s}
+#status{font-size:14px;color:var(--muted);margin-top:6px;min-height:20px}
+textarea{width:100%;min-height:170px;border:1px solid var(--line);border-radius:8px;padding:12px;font:18px/1.6 "Malgun Gothic","Noto Sans KR",system-ui,sans-serif;resize:vertical}
+small{color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Nhận dạng chữ tiếng Hàn từ ảnh</h1><p>Thả ảnh, kéo ảnh vào hoặc dán (Ctrl+V) để tự động nhận dạng chữ Hàn (한국어).</p></div></header>
+<main>
+  <div class="card">
+    <div id="drop" tabindex="0"><b>📥 Thả ảnh vào đây · bấm để chọn · hoặc dán ảnh (Ctrl+V)</b><span>Hỗ trợ PNG, JPG, WEBP, ảnh chụp màn hình</span></div>
+    <input id="file" type="file" accept="image/*" hidden>
+  </div>
+
+  <div class="card"><h2>Tiền xử lý ảnh</h2>
+    <div class="ctl">
+      <label class="ck"><input type="checkbox" id="pre" checked> Bật tiền xử lý (xám → làm mịn → phân ngưỡng thích ứng)</label>
+      <label class="ck"><input type="checkbox" id="blur" checked> Làm mịn nhiễu nền (giữ cạnh chữ)</label>
+      <label class="ck"><input type="checkbox" id="open" checked> Khử nhiễu nhỏ (Morphology Open 2×2)</label>
+      <label class="ck"><input type="checkbox" id="inv"> Đảo màu kết quả (chữ trắng nền đen)</label>
+      <label>Phóng to ảnh: <span id="scv">2</span>×<input type="range" id="scale" min="1" max="3" step="0.5" value="2"></label>
+      <label>Kích thước vùng ngưỡng: <span id="blv">15</span><input type="range" id="block" min="5" max="61" step="2" value="15"></label>
+      <label>Độ nhạy (C): <span id="cv">6</span><input type="range" id="c" min="0" max="25" step="1" value="6"></label>
+      <label>Ngôn ngữ nhận dạng
+        <select id="lang"><option value="kor">Tiếng Hàn (kor)</option><option value="kor+eng">Hàn + Anh</option><option value="kor+eng+vie">Hàn + Anh + Việt</option></select></label>
+      <label>Dạng ảnh
+        <select id="psm"><option value="3">Tự động (văn bản nhiều đoạn)</option><option value="6">Một khối chữ</option><option value="7">Một dòng chữ</option><option value="8">Một từ</option></select></label>
+    </div>
+  </div>
+
+  <div class="card"><h2>Ảnh</h2>
+    <div class="pair">
+      <figure><figcaption>Ảnh gốc</figcaption><img id="orig" alt="Ảnh gốc"></figure>
+      <figure><figcaption>Ảnh sau xử lý (đưa vào nhận dạng)</figcaption><canvas id="out"></canvas></figure>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="btn" disabled>🔍 Nhận dạng chữ Hàn</button>
+      <a class="dl" id="dl" download="anh-da-xu-ly.png" href="#">Tải ảnh đã xử lý</a>
+    </div>
+    <div id="prog"><div></div></div><div id="status"></div>
+  </div>
+
+  <div class="card"><h2>Kết quả</h2>
+    <textarea id="text" placeholder="Văn bản nhận dạng sẽ hiện ở đây..."></textarea>
+    <div class="row" style="margin-top:10px"><button class="sec" id="copy">📋 Sao chép</button><small id="conf"></small></div>
+    <p><small>Lần nhận dạng đầu tiên cần tải dữ liệu tiếng Hàn (khoảng vài chục MB) nên sẽ hơi lâu, các lần sau nhanh hơn. Ảnh được xử lý ngay trên máy bạn, không tải lên máy chủ nào. Nếu kết quả sai nhiều, hãy thử chỉnh phóng to, độ nhạy hoặc tắt tiền xử lý với ảnh vốn đã rõ.</small></p>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let img=null;
+function load(f){
+  if(!f||!f.type.startsWith('image/'))return;
+  const im=new Image();
+  im.onload=()=>{img=im;$('orig').src=im.src;$('btn').disabled=false;process();$('status').textContent='Đã nạp ảnh. Bấm "Nhận dạng chữ Hàn".'};
+  im.src=URL.createObjectURL(f);
+}
+// thả / chọn / dán ảnh
+const dz=$('drop');
+dz.onclick=()=>$('file').click();
+dz.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')$('file').click()};
+$('file').onchange=e=>load(e.target.files[0]);
+['dragenter','dragover'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.add('over')}));
+['dragleave','drop'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.remove('over')}));
+dz.addEventListener('drop',e=>load(e.dataTransfer.files[0]));
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();if(!dz.contains(e.target))load(e.dataTransfer.files[0])});
+addEventListener('paste',e=>{for(const it of (e.clipboardData||{}).items||[]){if(it.type.startsWith('image/')){load(it.getAsFile());break}}});
+
+function blur3(g,w,h){
+  const t=new Float32Array(g.length),o=new Float32Array(g.length);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x,a=g[y*w+Math.max(0,x-1)],b=g[y*w+Math.min(w-1,x+1)];t[i]=(a+2*g[i]+b)/4}
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x,a=t[Math.max(0,y-1)*w+x],b=t[Math.min(h-1,y+1)*w+x];o[i]=(a+2*t[i]+b)/4}
+  return o;
+}
+function openMorph(m,w,h){
+  const e=new Uint8Array(m.length),d=new Uint8Array(m.length);
+  for(let y=0;y<h-1;y++)for(let x=0;x<w-1;x++){const i=y*w+x;e[i]=m[i]&m[i+1]&m[i+w]&m[i+w+1]}
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;
+    d[i]=e[i]|(x>0?e[i-1]:0)|(y>0?e[i-w]:0)|(x>0&&y>0?e[i-w-1]:0)}
+  return d;
+}
+function process(){
+  if(!img)return;
+  const sc=+$('scale').value;let w=Math.round(img.naturalWidth*sc),h=Math.round(img.naturalHeight*sc);
+  const cap=3000;if(Math.max(w,h)>cap){const k=cap/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k)}
+  const c=$('out');c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.imageSmoothingQuality='high';ctx.drawImage(img,0,0,w,h);
+  if($('pre').checked){
+    const d=ctx.getImageData(0,0,w,h),p=d.data;let g=new Float32Array(w*h);
+    for(let i=0;i<g.length;i++)g[i]=.299*p[4*i]+.587*p[4*i+1]+.114*p[4*i+2];
+    if($('blur').checked)g=blur3(g,w,h);
+    const r=(+$('block').value)>>1,C=+$('c').value,W=w+1,I=new Float64Array(W*(h+1));
+    for(let y=0;y<h;y++){let s=0;for(let x=0;x<w;x++){s+=g[y*w+x];I[(y+1)*W+x+1]=I[y*W+x+1]+s}}
+    let m=new Uint8Array(w*h);
+    for(let y=0;y<h;y++){const y0=Math.max(0,y-r),y1=Math.min(h-1,y+r);
+      for(let x=0;x<w;x++){const x0=Math.max(0,x-r),x1=Math.min(w-1,x+r);
+        const sum=I[(y1+1)*W+x1+1]-I[y0*W+x1+1]-I[(y1+1)*W+x0]+I[y0*W+x0];
+        const mean=sum/((x1-x0+1)*(y1-y0+1));m[y*w+x]=g[y*w+x]<mean-C?1:0}}
+    if($('open').checked)m=openMorph(m,w,h);
+    const inv=$('inv').checked;
+    for(let i=0;i<m.length;i++){const v=(m[i]?0:255)^(inv?255:0);p[4*i]=p[4*i+1]=p[4*i+2]=v;p[4*i+3]=255}
+    ctx.putImageData(d,0,0);
+  }
+  c.toBlob(b=>{if(b){URL.revokeObjectURL($('dl').dataset.u||'');const u=URL.createObjectURL(b);$('dl').href=u;$('dl').dataset.u=u}});
+}
+let tm;const upd=()=>{$('scv').textContent=$('scale').value;$('blv').textContent=$('block').value;$('cv').textContent=$('c').value;clearTimeout(tm);tm=setTimeout(process,120)};
+['pre','blur','open','inv','scale','block','c'].forEach(id=>$(id).addEventListener('input',upd));
+
+$('btn').onclick=async()=>{
+  if(!img)return;
+  const st=$('status'),bar=$('prog').firstElementChild;
+  if(typeof Tesseract==='undefined'){st.textContent='Không tải được thư viện nhận dạng. Hãy kiểm tra kết nối mạng rồi tải lại trang.';return}
+  $('btn').disabled=true;$('text').value='';$('conf').textContent='';bar.style.width='2%';
+  try{
+    const w=await Tesseract.createWorker($('lang').value,1,{logger:m=>{
+      if(typeof m.progress==='number'){bar.style.width=Math.max(2,Math.round(m.progress*100))+'%';st.textContent=m.status+' '+Math.round(m.progress*100)+'%'}}});
+    await w.setParameters({tessedit_pageseg_mode:$('psm').value,preserve_interword_spaces:'1'});
+    const {data}=await w.recognize($('out'));
+    await w.terminate();
+    $('text').value=data.text.trim();
+    $('conf').textContent='Độ tin cậy ước tính: '+Math.round(data.confidence)+'%';
+    st.textContent=data.text.trim()?'Hoàn tất ✅':'Không tìm thấy chữ. Thử chỉnh phóng to hoặc độ nhạy.';
+    bar.style.width='100%';
+  }catch(err){st.textContent='Lỗi: '+(err.message||err)}
+  $('btn').disabled=false;
+};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('text').value);$('copy').textContent='✅ Đã chép'}catch(e){$('text').select();document.execCommand('copy')}setTimeout(()=>$('copy').textContent='📋 Sao chép',1500)};
+</script>
+</body>
+</html>
